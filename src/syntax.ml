@@ -170,17 +170,19 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     let Types.Refl = Types.eq_types e_ty Types.Bool in
     Expr (Not e_texpr, e_ty)
   (* Function call *)
-  (* | Funcall (name, e_list) ->
+  | Funcall (name, e_list) ->
     (* get type of function *)
     let id_ty =
       Structs.Symtable.find ~symtbl:symtbl name
       |> (function Some x -> x | None -> raise (Exceptions.Undeclared_Variable name))
       |> Types.check_ty
     in
+    (* ident_ty is concrete type of the function *)
     let (Types.Ty ident_ty) = id_ty in
-    let texpr_list =
-      List.map ~f:uty_to_texp e_list
-      |> List.iter ~f:() *)
+    (* Turn the uty list into a well-typed list *)
+    let texpr_list = List.map ~f:uty_to_texp e_list in
+    (* Apply each type to the function type chain *)
+    let () = List.fold ~init:
   | _ -> raise Exceptions.Not_implemented
 (* 
 let rec ustmt_to_tystmt ustmt =

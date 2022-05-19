@@ -1,3 +1,5 @@
+(* Representations of Jasmine types *)
+
 open Core
 
 (* Type representations of abstract types *)
