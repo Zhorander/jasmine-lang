@@ -43,6 +43,10 @@ end
 
 (* Module Well_typed Represents a Well-Typed Syntax Tree *)
 module Well_typed = struct
+  (* Future, include an int_value type for different int sizes
+   * Then turn Plus,Sub,... into
+   * 'a int_value expr * 'a int_value expr -> 'a int_value expr
+   *)
   type _ value =
     | Int_val : int -> int value
     | Bool_val : bool -> bool value
@@ -90,9 +94,9 @@ module Well_typed = struct
     | Return : 'a expr -> stmt
 end
 
-(* uty_to_texp : Structs.Symtable.t -> Untyped.expression -> Well_typed.some_expr
+(** uty_to_texp : Structs.Symtable.t -> Untyped.expression -> Well_typed.some_expr
  * convert an untyped expression to a well typed expression
- **)
+ *)
 let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some_texpr =
   fun symtbl expr ->
   let open Well_typed in
@@ -170,7 +174,7 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     let Types.Refl = Types.eq_types e_ty Types.Bool in
     Expr (Not e_texpr, e_ty)
   (* Function call *)
-  | Funcall (name, e_list) ->
+  | Untyped.Funcall (name, e_list) ->
     (* get type of function *)
     let id_ty =
       Structs.Symtable.find ~symtbl:symtbl name
@@ -180,10 +184,24 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     (* ident_ty is concrete type of the function *)
     let (Types.Ty ident_ty) = id_ty in
     (* Turn the uty list into a well-typed list *)
-    let texpr_list = List.map ~f:uty_to_texp e_list in
-    (* Apply each type to the function type chain *)
-    let () = List.fold ~init:
-  | _ -> raise Exceptions.Not_implemented
+    let texpr_list: some_texpr list =
+      List.map ~f:(uty_to_texp symtbl) e_list
+    in
+    let texpr_ty_list: Types.some_ty list =
+      List.map ~f:(fun (Expr (_, param_ty)) -> Types.Ty param_ty) texpr_list
+    in
+    let ret_t: Types.some_ty = match id_ty with
+      | Ty (Types.Fun (_, fun_ret)) -> Types.Ty fun_ret
+      | Ty (_) -> raise (Exceptions.TypeError (name ^ " is not a function."))
+    in
+    let (Types.Ty ret_t) = ret_t in
+    let Types.Refl = Types.eq_types ident_ty (Types.Fun (texpr_ty_list, ret_t)) in
+    (* Construct the well-typed function call expression *)
+    let param_list: param list =
+      List.map ~f:(fun (Expr (tparam,_)) -> Parameter tparam) texpr_list
+    in
+    Expr (Funcall (name, param_list), ret_t)
+  (* | _ -> raise Exceptions.Not_implemented *)
 (* 
 let rec ustmt_to_tystmt ustmt =
   match ustmt with

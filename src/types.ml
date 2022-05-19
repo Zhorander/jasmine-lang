@@ -15,7 +15,7 @@ type 'a ty =
   | Unit : unit ty
   | Int : int ty
   | Bool : bool ty
-  | Fun : 'a ty * 'b ty -> ('a -> 'b) ty
+  | Fun : (some_ty list) * 'a ty -> 'a ty
 (* Existential type of a well-typed type *)
 and some_ty =
   Ty : 'a ty -> some_ty
@@ -32,10 +32,18 @@ let rec eq_types: type a b. a ty -> b ty -> (a,b) eq =
   | (Int, Int) -> Refl
   | (Bool, Bool) -> Refl
   | (Fun (ti1, tr1),Fun (ti2, tr2)) ->
-    let Refl = eq_types ti1 ti2 in
+    let rec eq_params params1 params2 =
+      match params1, params2 with
+      | (Ty hd1) :: tl1, (Ty hd2) :: tl2 ->
+        let Refl = eq_types hd1 hd2 in
+        eq_params tl1 tl2
+      | [], [] -> ()
+      | _ -> raise (Exceptions.TypeError "")
+    in
+    let () = eq_params ti1 ti2 in
     let Refl = eq_types tr1 tr2 in
     Refl
-  | _, _ -> raise (Exceptions.Incompatible_Types "")
+  | _, _ -> raise (Exceptions.TypeError "")
 
 (* check_ty : uty -> some_ty
  * Convert an abstract type into a concrete existential type
@@ -48,11 +56,9 @@ let rec check_ty : uty -> some_ty = fun uty ->
   | T_bool -> Ty Bool
   | T_fun (tl,rt) ->
     let checked_ret = check_ty rt in
-    let fun_chain =
+    let params: some_ty list =
       List.rev tl
       |> List.map ~f:check_ty
-      |> List.fold
-        ~init:checked_ret
-        ~f:(fun (Ty out_t) (Ty inp_t) -> Ty (Fun (inp_t, out_t)))
     in
-    fun_chain
+    let (Ty some_ret) = checked_ret in
+    Ty (Fun (params, some_ret))
