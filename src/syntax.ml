@@ -85,8 +85,9 @@ module Well_typed = struct
       (* fun name(param list): type body return *)
     | Fun_def :
       { name: string;
-        params: param list;
-        ret_t: 'a Types.ty; body: stmt
+        params: (string * param) list;
+        ret_t: 'a Types.ty;
+        body: stmt
       } -> stmt
     | While : (bool expr) * stmt -> stmt
     | If : (bool expr) * stmt * (stmt option) -> stmt
@@ -94,10 +95,10 @@ module Well_typed = struct
     | Return : 'a expr -> stmt
 end
 
-(** uty_to_texp : Structs.Symtable.t -> Untyped.expression -> Well_typed.some_expr
+(** uexpr_to_texpr : Structs.Symtable.t -> Untyped.expression -> Well_typed.some_expr
  * convert an untyped expression to a well typed expression
  *)
-let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some_texpr =
+let rec uexpr_to_texpr: Structs.Symtable.t -> Untyped.expression -> Well_typed.some_texpr =
   fun symtbl expr ->
   let open Well_typed in
   match expr with
@@ -116,7 +117,7 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     Expr (Ident s, ident_ty)
   (* Group Expression *)
   | Untyped.Group e ->
-    let (Expr (e_texpr, e_ty)) = uty_to_texp symtbl e in
+    let (Expr (e_texpr, e_ty)) = uexpr_to_texpr symtbl e in
     Expr (Group e_texpr, e_ty)
   (* Binary Expressions
    * - extract the type of each type
@@ -124,53 +125,53 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
    *)
   (* Addition *)
   | Untyped.Plus (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check *)
     let Types.Refl = Types.eq_types lty Types.Int in
     let Types.Refl = Types.eq_types lty rty in
     Expr (Plus (ltexpr, rtexpr), Types.Int)
   (* Subtraction *)
   | Untyped.Sub (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check *)
     let Types.Refl = Types.eq_types lty Types.Int in
     let Types.Refl = Types.eq_types lty rty in
     Expr (Sub (ltexpr, rtexpr), Types.Int)
   (* Multiplication *)
   | Untyped.Mult (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check *)
     let Types.Refl = Types.eq_types lty Types.Int in
     let Types.Refl = Types.eq_types lty rty in
     Expr (Mult (ltexpr, rtexpr), Types.Int)
   (* Division *)
   | Untyped.Div (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check *)
     let Types.Refl = Types.eq_types lty Types.Int in
     let Types.Refl = Types.eq_types lty rty in
     Expr (Div (ltexpr, rtexpr), Types.Int)
   (* Equality *)
   | Untyped.Equal (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check - only that the args are type equivalent *)
     let Types.Refl = Types.eq_types lty rty in
     Expr (Equal (ltexpr, rtexpr), Types.Bool)
   (* Not Equals *)
   | Untyped.Not_equal (lhe, rhe) ->
-    let (Expr (ltexpr, lty)) = uty_to_texp symtbl lhe in
-    let (Expr (rtexpr, rty)) = uty_to_texp symtbl rhe in
+    let (Expr (ltexpr, lty)) = uexpr_to_texpr symtbl lhe in
+    let (Expr (rtexpr, rty)) = uexpr_to_texpr symtbl rhe in
     (* type check *)
     let Types.Refl = Types.eq_types lty rty in
     Expr (Not_equal (ltexpr, rtexpr), Types.Bool)
   (* Not *)
   | Untyped.Not e ->
-    let (Expr (e_texpr, e_ty)) = uty_to_texp symtbl e in
+    let (Expr (e_texpr, e_ty)) = uexpr_to_texpr symtbl e in
     let Types.Refl = Types.eq_types e_ty Types.Bool in
     Expr (Not e_texpr, e_ty)
   (* Function call *)
@@ -185,7 +186,7 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     let (Types.Ty ident_ty) = id_ty in
     (* Turn the uty list into a well-typed list *)
     let texpr_list: some_texpr list =
-      List.map ~f:(uty_to_texp symtbl) e_list
+      List.map ~f:(uexpr_to_texpr symtbl) e_list
     in
     let texpr_ty_list: Types.some_ty list =
       List.map ~f:(fun (Expr (_, param_ty)) -> Types.Ty param_ty) texpr_list
@@ -202,7 +203,33 @@ let rec uty_to_texp: Structs.Symtable.t -> Untyped.expression -> Well_typed.some
     in
     Expr (Funcall (name, param_list), ret_t)
   (* | _ -> raise Exceptions.Not_implemented *)
-(* 
-let rec ustmt_to_tystmt ustmt =
+
+let rec ustmt_to_tstmt scope ustmt =
+  let open Well_typed in
   match ustmt with
-  | *)
+  | Untyped.Exp expr ->
+    let (Expr (texpr, _)) = uexpr_to_texpr scope.symtbl expr in
+    Exp texpr
+  | Untyped.Vardec (name, uty, expr) ->
+    let (Ty ty) = Types.check_ty uty in
+    let (Expr (texpr, expr_ty)) = uexpr_to_texpr expr in
+    let Refl = Types.eq_types ty expr_ty in
+    Vardec (name, ty, texpr)
+  | Untyped.Compound stmts ->
+    let child_scope = Structs.Scope.create ~par=scope () in
+    let tstmt_list = List.map ~f:(ustmt_to_tstmt child_scope) stmts in
+    Compound tstmt_list
+  | Untyped.Fun_def {
+      name: string;
+      params: (string * Types.uty) list;
+      ret_t: Types.uty option;
+      body: stmt
+    } ->
+    let child_scope = Structs.Scope.create ~par=scope () in
+    List.iter ~f:(Structs.Scope.add_symbol ~scope:child_scope) params;
+    let tbody = ustmt_to_tstmt child_scope body in
+    let tparams = List.map ~f:(fun )
+  | Untyped.While (expr, stmt) ->
+  | Untyped.If (expr, then_stmt, else_stmt) ->
+  | Untyped.Mutate (loc_expr, expr) ->
+  | Untyped.Return expr ->
