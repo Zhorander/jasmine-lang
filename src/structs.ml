@@ -21,6 +21,14 @@ module Symtable = struct
     match Hashtbl.find symtbl sym with
     | Some _ -> true
     | None -> false
+
+  let dump ~(symtbl: t) =
+    let print_entry ~key ~data =
+      Printf.printf "%s : %s\n" key (Types.uty_to_string data)
+    in
+    Printf.printf "SYMTABLE DUMP\n=============\n";
+    Hashtbl.iteri ~f:print_entry symtbl;
+    Printf.printf "=============\n";
 end
 
 module Scope = struct
@@ -33,10 +41,10 @@ module Scope = struct
     { symtbl = Symtable.create ();
       parent = p }
 
-  let rec get_type ~symtbl ~scope sym =
+  let rec find ~scope sym =
     match scope.parent,(Symtable.find ~symtbl:scope.symtbl sym) with
     | _, (Some ty) -> ty
-    | (Some par),None -> get_type ~symtbl ~scope:par sym
+    | (Some par),None -> find ~scope:par sym
     | None,None -> raise (Exceptions.Undeclared_Variable sym)
 
   let add_symbol ~scope sym sym_t =

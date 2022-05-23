@@ -1,14 +1,14 @@
 open Lexer
 open Lexing
 
+open Core
+
 let print_position outx lexbuf =
-  let open Core in
   let pos = lexbuf.lex_curr_p in
   fprintf outx "%s:%d:%d" pos.pos_fname
     pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 
 let parse_with_error lexbuf =
-  let open Core in
   try Parser.prog Lexer.read lexbuf with
   | SyntaxError msg ->
     fprintf stderr "%a: %s\n" print_position lexbuf msg;
@@ -17,32 +17,24 @@ let parse_with_error lexbuf =
     fprintf stderr "%a: syntax error\n" print_position lexbuf;
     exit (-1)
 
-let parse_and_print lexbuf =
+let rec parse_and_print lexbuf =
   match parse_with_error lexbuf with
   | Some value ->
-    let pos = lexbuf.lex_curr_p in
-    Printf.printf "%d\n" pos.pos_lnum;
-    List.map Syntax.Untyped.sexp_of_stmt value
-      |> List.map Core.Sexp.to_string
-      |> List.iter print_endline
-    (* (try
+    begin try
+      let global_scope = Structs.Scope.create () in
+      let _ = Syntax.ustmt_to_tstmt global_scope value in
+      let _ = Mir.Basic_block.create 1 in
       parse_and_print lexbuf
+    
     with
-        Jasmine.TypeError s ->
-          Printf.fprintf stderr "Type Error: %s\nline: %d\n" s pos.pos_lnum
-      | Jasmine.Incompatible_Types s ->
-          Printf.fprintf stderr "Incompatible Types: %s\nline: %d\n" s pos.pos_lnum
-      | Jasmine.Invalid_Operation s ->
-          Printf.fprintf stderr "Invalid Operation: %s\nline: %d\n" s pos.pos_lnum
-      | Jasmine.Undeclared_Variable s ->
-          Printf.fprintf stderr "Undeclared Variable: %s\nline: %d\n" s pos.pos_lnum
-      | Jasmine.Unkown_Type s ->
-          Printf.fprintf stderr "Unkown Type: %s\nline: %d\n" s pos.pos_lnum
-    ) *)
+        Exceptions.TypeError s ->
+          fprintf stderr "Type Error: %s %a\n" s print_position lexbuf
+      | Exceptions.Undeclared_Variable s ->
+          Printf.fprintf stderr "Undeclared Variable: %s %a\n" s print_position lexbuf
+    end
   | None -> ()
 
 let loop filename () =
-  let open Core in
   let inx = In_channel.create filename in
   let lexbuf = Lexing.from_channel inx in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
@@ -50,8 +42,8 @@ let loop filename () =
   In_channel.close inx
 
 let _ =
-  let len = Array.length Sys.argv in
+  let len = Array.length (Sys.get_argv ()) in
   if len = 2 then
-    loop Sys.argv.(1) ()
+    loop (Sys.get_argv ()).(1) ()
   else
     print_endline "usage: test filename"

@@ -6,5 +6,5 @@
 
 (executable
  (name      jasmine)
- (libraries core sexplib)
+ (libraries core sexplib mir)
  (preprocess (pps ppx_sexp_conv)))

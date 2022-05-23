@@ -54,11 +54,11 @@ planned(%token ARROW)
 %left STAR SLASH
 %nonassoc (* UMINUS *) BANG
 
-%start <Syntax.Untyped.stmt list option> prog
+%start <Syntax.Untyped.stmt option> prog
 %%
 
 prog:
-  | t = toplevel_declaration+ EOF { Some t }
+  | t = toplevel_declaration  { Some t }
   | EOF                       { None }
   ;
 
@@ -171,11 +171,11 @@ iteration_statement:
     { Syntax.Untyped.While (cond, cs) }
   ;
 
-assignment_statement: lhe = expr EQUAL rhe = expr SEMICOLON
+assignment_statement: lhe = IDENT EQUAL rhe = expr SEMICOLON
   { Syntax.Untyped.Mutate (lhe, rhe) }
   ;
 
 jump_statement:
-  | RETURN e = expr { Syntax.Untyped.Return e }
+  | RETURN e = expr? SEMICOLON { Syntax.Untyped.Return e }
   ;
 (* ----------------------------------------------- *)
