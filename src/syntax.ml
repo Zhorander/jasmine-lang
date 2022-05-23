@@ -204,6 +204,10 @@ let rec uexpr_to_texpr: Structs.Scope.t -> Untyped.expression -> Well_typed.some
     Expr (Funcall (name, param_list), ret_t)
   (* | _ -> raise Exceptions.Not_implemented *)
 
+(** ustmt_to_tstmt: Structs.Scope.t -> Untyped.stmt -> Well_typed.stmt
+ * Convert an abstract statement into a well-typed statement
+ * Generally the first call is where the global scope is passed.
+ *)
 let rec ustmt_to_tstmt (scope: Structs.Scope.t) ustmt =
   let open Well_typed in
   match ustmt with
