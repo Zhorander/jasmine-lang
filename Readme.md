@@ -91,11 +91,11 @@ fun main(): int {
 
 ### Other Features
 
-While the other mentioned aspects of the language are simple, and generally easy to reason about the resulting assembly -- an important consideration for its intended targets -- there are other lanugage features that would be nice to have, such as higher order function, traits, and polymorphism.
+While the other mentioned aspects of the language are simple, and generally easy to reason about the resulting assembly -- an important consideration for its intended targets -- there are other lanugage features that would be nice to have, such as higher order functions, traits, and polymorphism.
 
 #### Higher Order Functions
 
-Higher order functions may be easy to reason about W.R.T assembly output, and even a parametricly polymorphic function. However, the code size may increase unreasonably so for a smaller target system, such as the Atari.
+Higher order functions may be easy to reason about W.R.T. assembly output, and even a parametricly polymorphic function. However, the code size may increase unreasonably so for a smaller target system, such as the Atari.
 
 #### Sum Types
 

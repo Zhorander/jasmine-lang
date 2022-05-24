@@ -101,13 +101,10 @@ type_specifier:
 (* Expressions *)
 (* ----------------------------------------------- *)
 expr:
-  | ce = const_expr                      { ce }
   | n = IDENT LEFT_PAREN a = separated_list(COMMA, expr) RIGHT_PAREN
     { Syntax.Untyped.Funcall (n, a) }
   | b = bin_expr                         { b }
-  | LEFT_PAREN e = expr RIGHT_PAREN      { Syntax.Untyped.Group e }
   // | uop = unop r = expr %prec UMINUS  { Jasmine.Exp.Unary (uop,r) }
-  | u = un_expr                          { u }
   ;
 
 const_expr:
@@ -115,10 +112,12 @@ const_expr:
   | i = INT                          { Syntax.Untyped.Int i }
   | TRUE                             { Syntax.Untyped.Bool true }
   | FALSE                            { Syntax.Untyped.Bool false }
+  | LEFT_PAREN e = expr RIGHT_PAREN  { Syntax.Untyped.Group e }
   ;
 
 un_expr:
-  | BANG e = expr  { Syntax.Untyped.Not e }
+  | ce = const_expr  { ce }
+  | BANG e = un_expr { Syntax.Untyped.Not e }
   // | MINUS { Jasmine.Operator.Minus }
   ;
 
@@ -126,6 +125,7 @@ define(`binopexpr', `lhe = expr $1 rhe = expr')
 define(`binopprod', `Syntax.Untyped.$1 (lhe, rhe)')
 
 bin_expr:
+  | ue = un_expr           { ue }
   | binopexpr(EQUAL_EQUAL) { binopprod(Equal) }
   | binopexpr(BANG_EQUAL)  { binopprod(Not_equal) }
   | binopexpr(PLUS)        { binopprod(Plus) }
@@ -160,14 +160,14 @@ compound_statement:
 expression_statement: e = expr SEMICOLON { Syntax.Untyped.Exp e };
 
 selection_statement:
-  | IF e = expr s = statement
+  | IF e = expr s = compound_statement
     { Syntax.Untyped.If (e, s, None) }
-  | IF e = expr s = statement ELSE els = statement
+  | IF e = expr s = compound_statement ELSE els = compound_statement
     { Syntax.Untyped.If (e, s, (Some els)) }
   ;
 
 iteration_statement:
-  | WHILE cond = expr cs = statement
+  | WHILE cond = expr cs = compound_statement
     { Syntax.Untyped.While (cond, cs) }
   ;
 

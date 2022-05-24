@@ -23,7 +23,7 @@ let rec parse_and_print lexbuf =
     begin try
       let global_scope = Structs.Scope.create () in
       let _ = Syntax.ustmt_to_tstmt global_scope value in
-      let _ = Mir.Basic_block.create 1 in
+      (* let _ = Mir.Basic_block.create 1 in *)
       parse_and_print lexbuf
     
     with
