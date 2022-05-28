@@ -4,17 +4,22 @@ NAME := jasmine
 EXEC_NAME := $(NAME).exe
 
 preproc_files := parser.mly
+opam_files := syntax.opam mir.opam
 
 .PHONY: all
 all: $(EXEC_NAME)
 
-%.mly : %.mly.m4
+%.mly: %.mly.m4
 	m4 $< > $@
 
-$(EXEC_NAME): $(preproc_files)
+%.opam:
+	touch $@
+
+$(EXEC_NAME): $(preproc_files) $(opam_files)
 	$(OCAMLC) $(OPTS) $(EXEC_NAME)
 
 .PHONY: clean
 clean:
 	rm $(preproc_files)
-	rm -rf _build
+	rm $(opam_files)
+	rm -r _build
