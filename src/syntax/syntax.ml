@@ -6,6 +6,10 @@
 
 open Core
 
+module Structs = Structs
+module Types = Types
+module Exceptions = Exceptions
+
 (* Moule Untyped Represents the Abstract Syntax Tree *)
 module Untyped = struct
   (* Abstract Expression *)

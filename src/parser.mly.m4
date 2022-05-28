@@ -1,7 +1,7 @@
 define(`planned', `')
 
 (* values *)
-%token <string> IDENT STRING
+%token <string> IDENT planned(STRING)
 %token <int> INT
 planned(%token <float>  FLOAT)
 %token TRUE
@@ -46,13 +46,13 @@ planned(%token LESS_EQUAL)
 (* misc *)
 %token EOF
 %token SEMICOLON
-planned(%token ARROW)
+%token ARROW
 
 // %left AND_AND OR_OR
 %left EQUAL_EQUAL (* BANG_EQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL *)
 %left PLUS MINUS
 %left STAR SLASH
-%nonassoc (* UMINUS *) BANG
+planned(%nonassoc UMINUS BANG)
 
 %start <Syntax.Untyped.stmt option> prog
 %%
@@ -69,9 +69,11 @@ toplevel_declaration:
 
 (* Function Definition *)
 function_definition:
-  | FUN n = IDENT p = param_type_list COLON t = signature? body = compound_statement
-    { Syntax.Untyped.Fun_def { name=n;params=p;ret_t=t; body=body } }
+  | FUN n = IDENT p = param_type_list rt = function_ret_sig? body = compound_statement
+    { Syntax.Untyped.Fun_def { name=n;params=p;ret_t=rt; body=body } }
   ;
+
+function_ret_sig: ARROW t = signature { t }
 
 param_type_list:
   | LEFT_PAREN args = separated_list(COMMA, arg_dec) RIGHT_PAREN { args }
@@ -93,16 +95,14 @@ signature:
   ;
 
 type_specifier:
-  | T_INT  { Types.T_int }
-  | T_BOOL { Types.T_bool }
+  | T_INT  { Syntax.Types.T_int }
+  | T_BOOL { Syntax.Types.T_bool }
   ;
 (* ----------------------------------------------- *)
 
 (* Expressions *)
 (* ----------------------------------------------- *)
 expr:
-  | n = IDENT LEFT_PAREN a = separated_list(COMMA, expr) RIGHT_PAREN
-    { Syntax.Untyped.Funcall (n, a) }
   | b = bin_expr                         { b }
   // | uop = unop r = expr %prec UMINUS  { Jasmine.Exp.Unary (uop,r) }
   ;
@@ -113,6 +113,8 @@ const_expr:
   | TRUE                             { Syntax.Untyped.Bool true }
   | FALSE                            { Syntax.Untyped.Bool false }
   | LEFT_PAREN e = expr RIGHT_PAREN  { Syntax.Untyped.Group e }
+  | n = IDENT LEFT_PAREN a = separated_list(COMMA, expr) RIGHT_PAREN
+    { Syntax.Untyped.Funcall (n, a) }
   ;
 
 un_expr:
@@ -121,7 +123,7 @@ un_expr:
   // | MINUS { Jasmine.Operator.Minus }
   ;
 
-define(`binopexpr', `lhe = expr $1 rhe = expr')
+define(`binopexpr', `lhe = bin_expr $1 rhe = bin_expr')
 define(`binopprod', `Syntax.Untyped.$1 (lhe, rhe)')
 
 bin_expr:

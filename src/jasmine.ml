@@ -21,15 +21,15 @@ let rec parse_and_print lexbuf =
   match parse_with_error lexbuf with
   | Some value ->
     begin try
-      let global_scope = Structs.Scope.create () in
+      let global_scope = Syntax.Structs.Scope.create () in
       let _ = Syntax.ustmt_to_tstmt global_scope value in
       (* let _ = Mir.Basic_block.create 1 in *)
       parse_and_print lexbuf
     
     with
-        Exceptions.TypeError s ->
+        Syntax.Exceptions.TypeError s ->
           fprintf stderr "Type Error: %s %a\n" s print_position lexbuf
-      | Exceptions.Undeclared_Variable s ->
+      | Syntax.Exceptions.Undeclared_Variable s ->
           Printf.fprintf stderr "Undeclared Variable: %s %a\n" s print_position lexbuf
     end
   | None -> ()

@@ -54,7 +54,7 @@ rule read =
   | ':'      { COLON }
   | ','      { COMMA }
   | ';'      { SEMICOLON }
-  (* | '-' '>'  { ARROW } *)
+  | '-' '>'  { ARROW }
   | '*'      { STAR }
   | '/'      { SLASH }
   | '+'      { PLUS }
