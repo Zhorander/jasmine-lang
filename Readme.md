@@ -7,7 +7,7 @@ to create a well-typed language that can be compiled into various targets, such 
 
 - [ x ] Implement the scanner and parser
 - [ x ] Create an abstract syntax tree
-- [ x ] Turn the abstract syntax tree into a concrete syntax tree
+- [ x ] Turn the abstract syntax tree into a well-typed syntax tree
 - [   ] Lambda lifting?
 - [   ] Polymorphism and Monomorphization?
 - [   ] Optimization passes

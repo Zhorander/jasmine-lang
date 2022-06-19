@@ -186,7 +186,7 @@ let rec uexpr_to_texpr: Structs.Scope.t -> Untyped.expression -> Well_typed.some
       Structs.Scope.find ~scope name
       |> Types.check_ty
     in
-    (* ident_ty is concrete type of the function *)
+    (* ident_ty is the well-typed type of the function *)
     let (Types.Ty ident_ty) = id_ty in
     (* Turn the uty list into a well-typed list *)
     let texpr_list: some_texpr list =
