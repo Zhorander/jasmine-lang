@@ -1,6 +1,6 @@
 let i: int = 2;
 
-fun main(x: int) -> int {
+fun main(x: int, p: int) -> int {
   let y: int = 4;
   let z: int = y + i;
 
@@ -10,3 +10,11 @@ fun main(x: int) -> int {
 
   return z + x;
 }
+
+fun f(b: bool) {
+  if b {
+    let m: int = 2323;
+  }
+}
+
+let x: int = main(23, 3);

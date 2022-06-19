@@ -40,9 +40,8 @@ let loop filename () =
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
   let global_scope = Syntax.Structs.Scope.create () in
   let tree_list: Syntax.Well_typed.stmt list = parse_and_print [] global_scope lexbuf in
-  let three_addrs = List.map ~f:Mir.Three_addr.t_of_syntax_tree tree_list
-    |> List.map ~f:List.rev
-    |> List.fold ~init:[] ~f:(fun acc stmts -> stmts @ acc)
+  let three_addrs =
+    Mir.Three_addr.t_of_syntax_tree_list tree_list
     |> List.map ~f:Mir.Three_addr.string_of_statement
   in
   List.iter ~f:print_endline three_addrs;

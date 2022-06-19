@@ -14,7 +14,7 @@ let string_of_value = function
   | Int i -> string_of_int i
   | Bool b -> string_of_bool b
   | Unit () -> "()"
-  | Identifier id -> Printf.sprintf "Ident<%s>" id
+  | Identifier id -> Printf.sprintf "<%s>" id
 
 type expression =
   | Value of value
@@ -153,19 +153,20 @@ let rec t_of_expression : type a. environment * (statement list) -> a Wt.expr ->
       let env,t = t_of_expression (env,acc) pexpr in
       begin match t with
       | _ :: _ ->
-        let operand_tmp, env = inc_tmp env in
+        let operand_tmp = env.curr_tmp in
         let param_stmt = Call_param (Identifier (make_tmp_name operand_tmp)) in
         env, param_stmt :: t
       | [] ->
-        let result_tmp, env = inc_tmp env in
-        let call_stmt = Assign ((make_tmp_name result_tmp), Funcall name) in
-        env, call_stmt :: acc
+        (env,acc)
       end
     in
     let start_call_stmt = Start_call name in
     let acc = start_call_stmt :: acc in
     let env,acc = List.fold ~init:(env,acc) ~f:accumulate_values params in
-    (env,acc)
+    (* result *)
+    let result_tmp, env = inc_tmp env in
+    let call_stmt = Assign ((make_tmp_name result_tmp), Funcall name) in
+    env, call_stmt :: acc
 
 let rec t_of_statement (env,acc) stmt =
   match stmt with
@@ -193,67 +194,82 @@ let rec t_of_statement (env,acc) stmt =
     let (env,loop_acc) = t_of_statement (env,[]) wstmt in
     let end_loop_label_num, env = inc_label env in
     let end_loop_label = Label (make_loop_name end_loop_label_num) in
-    let loop_acc = end_loop_label :: loop_acc in
 
     (* Make the conditional now that we know the end loop number *)
     let cond_stmt = If (cond_res_tmp,make_loop_name end_loop_label_num) in
 
+    (* Jump back to the cond at end of loop *)
+    let jump_start_stmt = Goto (make_loop_name loop_label_num) in
+    let loop_acc = jump_start_stmt :: loop_acc in
+
+    (* Add the end loop label at the end *)
+    let loop_acc = end_loop_label :: loop_acc in
+
     (* Put everything together*)
     (env, loop_acc @ (cond_stmt :: acc))
-    | Wt.If (cond,then_stmt,else_stmt) ->
-      let (env,acc) = t_of_expression (env,acc) cond in
-      let res_tmp = Identifier (make_tmp_name env.curr_tmp) in
+  | Wt.If (cond,then_stmt,else_stmt) ->
+    let (env,acc) = t_of_expression (env,acc) cond in
+    let res_tmp = Identifier (make_tmp_name env.curr_tmp) in
 
-      let (env,else_acc) = match else_stmt with
-      | None -> (env,[])
-      | Some else_stmt ->
-        let (env,else_acc) = t_of_statement (env,[]) else_stmt in
-        (env,else_acc)
-      in
+    let (env,else_acc) = match else_stmt with
+    | None -> (env,[])
+    | Some else_stmt ->
+      let (env,else_acc) = t_of_statement (env,[]) else_stmt in
+      (env,else_acc)
+    in
 
-      let then_loop_num, env = inc_label env in
-      let then_loop_stmt = Label (make_loop_name then_loop_num) in
-      let (env, then_acc) = t_of_statement (env,[then_loop_stmt]) then_stmt in
-      let end_loop_num, env = inc_label env in
-      let end_loop_stmt = Label (make_loop_name end_loop_num) in
-      let then_acc = end_loop_stmt :: then_acc in
+    let then_loop_num, env = inc_label env in
+    let then_loop_stmt = Label (make_loop_name then_loop_num) in
+    let (env, then_acc) = t_of_statement (env,[then_loop_stmt]) then_stmt in
+    let end_loop_num, env = inc_label env in
+    let end_loop_stmt = Label (make_loop_name end_loop_num) in
+    let then_acc = end_loop_stmt :: then_acc in
 
-      let jump_then_stmt = If (res_tmp,make_loop_name then_loop_num) in
-      let acc = jump_then_stmt :: acc in
+    let jump_then_stmt = If (res_tmp,make_loop_name then_loop_num) in
+    let acc = jump_then_stmt :: acc in
 
-      let jump_end_stmt = Goto (make_loop_name end_loop_num) in
-      let else_acc = jump_end_stmt :: else_acc in
+    let jump_end_stmt = Goto (make_loop_name end_loop_num) in
+    let else_acc = jump_end_stmt :: else_acc in
 
-      (env,then_acc @ else_acc @ acc)
-    | Wt.Mutate (name, expr) ->
-      let (env,acc) = t_of_expression (env,acc) expr in
-      let exp_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
-      let new_stmt = Assign (name, exp_tmp) in
-      (env, new_stmt :: acc)
-    | Wt.Return expr ->
-      let (env,acc) = t_of_expression (env,acc) expr in
-      let exp_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
-      let new_stmt = Return exp_tmp in
-      (env,new_stmt :: acc)
-    | Wt.Fun_def { name; params; ret_t; body} ->
-      let fun_start_stmt = Function_start name in
-      let acc = fun_start_stmt :: acc in
-      (* Add function parameter info *)
-      let (env,acc) = List.fold
-        ~init:(env,acc)
-        ~f:(fun (env,acc) (param_name,_) ->
-          let fun_param_stmt = Function_param param_name in
-          (env,fun_param_stmt :: acc))
-        params
-      in
-      (* Add return type information *)
-      let ret_type_stmt = Function_ret_type (Syntax.Types.ty_to_string ret_t) in
-      let acc = ret_type_stmt :: acc in
-      (* Turn body into statement list *)
-      let (env,acc) = t_of_statement (env,acc) body in
-      (env,acc)
+    (env,then_acc @ else_acc @ acc)
+  | Wt.Mutate (name, expr) ->
+    let (env,acc) = t_of_expression (env,acc) expr in
+    let exp_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
+    let new_stmt = Assign (name, exp_tmp) in
+    (env, new_stmt :: acc)
+  | Wt.Return expr ->
+    let (env,acc) = t_of_expression (env,acc) expr in
+    let exp_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
+    let new_stmt = Return exp_tmp in
+    (env,new_stmt :: acc)
+  | Wt.Fun_def { name; params; ret_t; body} ->
+    let fun_start_stmt = Function_start name in
+    let acc = fun_start_stmt :: acc in
+    (* Add function parameter info *)
+    let (env,acc) = List.fold
+      ~init:(env,acc)
+      ~f:(fun (env,acc) (param_name,_) ->
+        let fun_param_stmt = Function_param param_name in
+        (env,fun_param_stmt :: acc))
+      params
+    in
+    (* Add return type information *)
+    let ret_type_stmt = Function_ret_type (Syntax.Types.ty_to_string ret_t) in
+    let acc = ret_type_stmt :: acc in
+    (* Turn body into statement list *)
+    let (env,acc) = t_of_statement (env,acc) body in
+    (* Mark the end of the function *)
+    let end_fun_stat = Function_end name in
+    let acc = end_fun_stat :: acc in
+    (env,acc)
 
-let t_of_syntax_tree st =
+let t_of_syntax_tree_list st_list =
   let env = new_environment () in
-  let (_,acc) = t_of_statement (env,[]) st in
+  let (_,acc) = List.fold
+    ~init:(env,[])
+    ~f:(fun (env,acc) stat ->
+      t_of_statement (env,[]) stat
+      |> fun (env,new_acc) -> env, (List.rev new_acc) @ acc)
+    st_list
+  in
   acc
