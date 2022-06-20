@@ -3,6 +3,9 @@ open Lexing
 
 open Core
 
+module Symtable = Syntax.Symtable
+module Scope = Syntax.Scope
+
 let print_position outx lexbuf =
   let pos = lexbuf.lex_curr_p in
   fprintf outx "%s:%d:%d" pos.pos_fname
@@ -38,7 +41,7 @@ let loop filename () =
   let inx = In_channel.create filename in
   let lexbuf = Lexing.from_channel inx in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-  let global_scope = Syntax.Structs.Scope.create () in
+  let global_scope = Scope.create () in
   let tree_list: Syntax.Well_typed.stmt list = parse_and_print [] global_scope lexbuf in
   let three_addrs =
     Mir.Three_addr.t_of_syntax_tree_list tree_list

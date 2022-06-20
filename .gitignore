@@ -35,3 +35,4 @@ parser.mly
 # library files
 syntax.opam
 mir.opam
+common.opam

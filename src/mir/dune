@@ -1,5 +1,5 @@
 (library
  (name            mir)
  (public_name     mir)
- (libraries       core sexplib syntax)
+ (libraries       core sexplib common syntax)
  (preprocess (pps ppx_sexp_conv)))

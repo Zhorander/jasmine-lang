@@ -4,7 +4,7 @@ NAME := jasmine
 EXEC_NAME := $(NAME).exe
 
 preproc_files := parser.mly
-opam_files := syntax.opam mir.opam
+opam_files := common.opam syntax.opam mir.opam
 
 .PHONY: all
 all: $(EXEC_NAME)

@@ -3,6 +3,8 @@
 open Core
 
 module Wt = Syntax.Well_typed
+module Ty = Common.Types.Well_typed
+module Uty = Common.Types.Untyped
 
 type value =
   | Int of int
@@ -254,7 +256,7 @@ let rec t_of_statement (env,acc) stmt =
       params
     in
     (* Add return type information *)
-    let ret_type_stmt = Function_ret_type (Syntax.Types.ty_to_string ret_t) in
+    let ret_type_stmt = Function_ret_type (Ty.to_string ret_t) in
     let acc = ret_type_stmt :: acc in
     (* Turn body into statement list *)
     let (env,acc) = t_of_statement (env,acc) body in

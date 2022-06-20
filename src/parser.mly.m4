@@ -95,8 +95,8 @@ signature:
   ;
 
 type_specifier:
-  | T_INT  { Syntax.Types.T_int }
-  | T_BOOL { Syntax.Types.T_bool }
+  | T_INT  { Syntax.Uty.Int }
+  | T_BOOL { Syntax.Uty.Bool }
   ;
 (* ----------------------------------------------- *)
 
