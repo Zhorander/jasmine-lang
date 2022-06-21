@@ -49,7 +49,7 @@ type statement =
   | Label of string
   | Goto of string
   | Return of expression
-  | If of value * string
+  | If of expression * string
   | Start_call of string
   | Call_param of value
   | Function_start of string
@@ -63,7 +63,7 @@ let string_of_statement = function
   | Label name -> "LABEL " ^ name
   | Goto name -> "GOTO " ^ name
   | Return expr -> "RETURN " ^ (string_of_expression expr)
-  | If (v,name) -> "IF " ^ (string_of_value v) ^ " GOTO " ^ name
+  | If (expr,name) -> "IF " ^ (string_of_expression expr) ^ " GOTO " ^ name
   | Start_call name -> "START_CALL " ^ name
   | Call_param v -> "PARAM " ^ (string_of_value v)
   | Function_start name -> "FUNCTION_START " ^ name
@@ -94,7 +94,7 @@ let value_of_wt_val : type a. a Wt.value -> value =
   | Unit_val u -> Unit u
 
 let make_tmp_name i =
-  Printf.sprintf "_%d" i
+  Printf.sprintf "@%d" i
 
 let make_loop_name i =
   Printf.sprintf "L%d" i
@@ -189,7 +189,7 @@ let rec t_of_statement (env,acc) stmt =
 
     (* Make the conditional statement list with the accumulator *)
     let (env,acc) = t_of_expression (env,acc) cond in
-    let cond_res_tmp = Identifier (make_tmp_name env.curr_tmp) in
+    let cond_res_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
 
     (* Create the loop body statement list with an empty accumulator *)
     (* So we can stitch it back later *)
@@ -211,7 +211,7 @@ let rec t_of_statement (env,acc) stmt =
     (env, loop_acc @ (cond_stmt :: acc))
   | Wt.If (cond,then_stmt,else_stmt) ->
     let (env,acc) = t_of_expression (env,acc) cond in
-    let res_tmp = Identifier (make_tmp_name env.curr_tmp) in
+    let res_tmp = Value (Identifier (make_tmp_name env.curr_tmp)) in
 
     let (env,else_acc) = match else_stmt with
     | None -> (env,[])

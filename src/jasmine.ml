@@ -45,6 +45,7 @@ let loop filename () =
   let tree_list: Syntax.Well_typed.stmt list = parse_and_print [] global_scope lexbuf in
   let three_addrs =
     Mir.Three_addr.t_of_syntax_tree_list tree_list
+    |> Mir.Three_addr_opt.constant_propogation
     |> List.map ~f:Mir.Three_addr.string_of_statement
   in
   List.iter ~f:print_endline three_addrs;

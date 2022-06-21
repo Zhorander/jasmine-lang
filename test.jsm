@@ -8,7 +8,7 @@ fun main(x: int, p: int) -> int {
     z = z - 1;
   }
 
-  return z + x;
+  return z + x + 2;
 }
 
 fun f(b: bool) {
