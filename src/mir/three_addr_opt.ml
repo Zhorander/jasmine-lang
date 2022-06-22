@@ -126,7 +126,11 @@ let collect_temps_from_expr expr =
 let elide_temps (used,acc) stmt =
   match stmt with
   | Taddr.Assign (name,expr) ->
-    if (is_tmp_string name) && not (List.exists used ~f:(String.equal name)) then
+    if (is_tmp_string name)
+      && not (List.exists used ~f:(String.equal name))
+      (* Cannot elide function calls since they may have side effects *)
+      && not (match expr with Funcall _ -> true | _ -> false)
+    then
       used, acc
     else
       let used_tmps = collect_temps_from_expr expr in
@@ -145,6 +149,11 @@ let elide_temps (used,acc) stmt =
 
 let constant_propogation stmts =
   let scope = Scope.create () in
+  let () =
+    List.map ~f:Taddr.string_of_statement stmts
+    |> List.iter ~f:print_endline
+  in
+  print_endline "========================";
   List.fold ~init:(scope,[]) ~f:constant_propogation_stmt stmts
   |> fun (_,prop_stmts) -> prop_stmts
   |> List.fold ~init:([],[]) ~f:elide_temps

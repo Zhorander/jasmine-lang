@@ -15,6 +15,8 @@ fun f(b: bool) {
   if b {
     let m: int = 2323;
   }
+
+  main(2, 3);
 }
 
 let x: int = main(23, 3);
