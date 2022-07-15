@@ -57,13 +57,10 @@ module Well_typed = struct
    * Then turn Plus,Sub,... into
    * 'a int_value expr * 'a int_value expr -> 'a int_value expr
    *)
-  type _ value =
-    | Int_val : int -> int value
-    | Bool_val : bool -> bool value
-    | Unit_val : unit -> unit value
-  and
-  _ expr =
-    | Value : 'a value -> 'a expr
+  type _ expr =
+    | Int : int -> int expr
+    | Bool : bool -> bool expr
+    | Unit : unit -> unit expr
     | Ident : string -> 'a expr
     | Group : 'a expr -> 'a expr
     | Plus : int expr * int expr -> int expr
@@ -89,8 +86,8 @@ module Well_typed = struct
    * type to represent a well typed statement
    **)
   type stmt =
-    | Exp : 'a expr -> stmt
-    | Vardec : string * 'a Ty.t * 'a expr -> stmt
+    | Exp : some_texpr -> stmt
+    | Vardec : string * some_texpr -> stmt
     | Compound : stmt list -> stmt
       (* fun name(param list): type body return *)
     | Fun_def :
@@ -102,7 +99,7 @@ module Well_typed = struct
     | While : (bool expr) * stmt -> stmt
     | If : (bool expr) * stmt * (stmt option) -> stmt
     | Mutate : string * 'a expr -> stmt
-    | Return : 'a expr -> stmt
+    | Return : some_texpr -> stmt
 end
 
 (** uexpr_to_texpr : Structs.Symtable.t -> Untyped.expression -> Well_typed.some_expr
@@ -113,9 +110,9 @@ let rec uexpr_to_texpr: Scope.t -> Untyped.expression -> Well_typed.some_texpr =
   let open Well_typed in
   match expr with
   (* Value Expressions *)
-  | Untyped.Bool b -> Expr (Value (Bool_val b), Bool)
-  | Untyped.Int i -> Expr (Value (Int_val i), Int)
-  | Untyped.Unit u -> Expr (Value (Unit_val u), Unit)
+  | Untyped.Bool b -> Expr (Bool b, Ty.Bool)
+  | Untyped.Int i -> Expr (Int i, Ty.Int)
+  | Untyped.Unit u -> Expr (Unit u, Ty.Unit)
   (* Identifiers ask the symbol table for their type *)
   | Untyped.Ident s ->
     let id_ty =
@@ -219,16 +216,14 @@ let rec uexpr_to_texpr: Scope.t -> Untyped.expression -> Well_typed.some_texpr =
 let rec ustmt_to_tstmt (scope: Scope.t) ustmt =
   let open Well_typed in
   match ustmt with
-  | Untyped.Exp expr ->
-    let (Expr (texpr, _)) = uexpr_to_texpr scope expr in
-    Exp texpr
+  | Untyped.Exp expr -> Exp (uexpr_to_texpr scope expr)
   | Untyped.Vardec (name, uty, expr) ->
     let (Ty ty) = Ty.check_ty uty in
     let (Expr (texpr, expr_ty)) = uexpr_to_texpr scope expr in
     let Refl = Ty.eq_types ty expr_ty in
     (* Add new variable to the scope *)
     Scope.add_symbol ~scope name uty; 
-    Vardec (name, ty, texpr)
+    Vardec (name, Expr (texpr, ty))
   | Untyped.Compound stmts ->
     let child_scope = Scope.create ~par:(Some scope) () in
     let tstmt_list = List.map ~f:(ustmt_to_tstmt child_scope) stmts in
@@ -291,8 +286,6 @@ let rec ustmt_to_tstmt (scope: Scope.t) ustmt =
     Mutate (loc_expr, typed_expr)
   | Untyped.Return expr ->
     begin match expr with
-      | None -> Return (Value (Unit_val ()))
-      | Some uexpr ->
-        let (Expr (texpr, _)) = uexpr_to_texpr scope uexpr in
-        Return texpr
+      | None -> Return (Expr (Well_typed.Unit (), Ty.Unit))
+      | Some uexpr -> Return (uexpr_to_texpr scope uexpr)
     end

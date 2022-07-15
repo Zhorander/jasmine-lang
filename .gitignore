@@ -36,3 +36,4 @@ parser.mly
 syntax.opam
 mir.opam
 common.opam
+lir.opam

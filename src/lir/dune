@@ -1,0 +1,5 @@
+(library
+ (name            lir)
+ (public_name     lir)
+ (libraries       core sexplib common)
+ (preprocess (pps ppx_sexp_conv)))

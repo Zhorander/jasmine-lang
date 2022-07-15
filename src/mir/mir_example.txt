@@ -1,0 +1,42 @@
+=== Before Basic Block Construction ===
+
+start_function main
+In x: i32
+Out unit
+Let i: mut i32 = 1
+Label loop_top
+If i > 25 Goto loop_end
+Start_call print_int
+Param i
+Let () = Call print_int
+i := i + 1
+Goto loop_top
+Label loop_end
+Ret
+End_function
+
+=== After Basic Block Construction ===
+
+fun main {
+  In x: i32;
+  Out @0: unit;
+
+  let mut i: i32 = 1;
+
+  BB1 {
+    switch_bool i > 25 : true -> BB2 | false -> BB3;
+  }
+
+  BB2 {
+    start_call print_int;
+    param i;
+    let () = call print_int;
+    i := i + 1;
+    goto BB1;
+  }
+
+  BB3 {
+    @0 := ();
+    ret;
+  }
+}

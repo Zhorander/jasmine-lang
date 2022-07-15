@@ -79,4 +79,7 @@ module Scope (Symtbl : Symbol_table with type key = string) = struct
 
   let symbol_exists ~scope sym =
     Symtbl.exists ~symtbl:scope.symtbl sym
+
+  let dump ~scope =
+    Symtbl.dump ~symtbl:scope.symtbl
 end

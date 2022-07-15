@@ -36,6 +36,7 @@ module Well_typed = struct
     | Unit : unit t
     | Int : int t
     | Bool : bool t
+    | Poly : 'a t
     | Fun : (some_ty list) * 'a t -> 'a t
   (* Existential type of a well-typed type *)
   and some_ty =
@@ -46,6 +47,7 @@ module Well_typed = struct
   | Unit -> "unit"
   | Int -> "int"
   | Bool -> "bool"
+  | Poly -> "poly"
   | Fun (tyl, ret_ty) ->
     let sparams = List.fold
       ~init:""
@@ -57,6 +59,11 @@ module Well_typed = struct
     let sret = to_string ret_ty in
     Printf.sprintf "Function %s -> %s" sparams sret
 
+
+let eq_poly_types: 'a t -> 'b t -> ('a,'b) eq =
+  fun ta tb ->
+  match  (ta,tb) with
+  | _ -> Refl
 
   (* eq_types : type a b. a ty -> b ty -> (a,b) eq
   * Show that two types are equal, or raise exception
