@@ -52,7 +52,7 @@ module Make_symbol_table(Sym : Symbol)
     let print_entry ~key ~data =
       Printf.printf "%s : %s\n" key (Sym.to_string data)
     in
-    Printf.printf "SYMTABLE DUMP\n=============\n";
+    Printf.printf "SYMTABLE DUMP\n-------------\n";
     Hashtbl.iteri ~f:print_entry symtbl;
     Printf.printf "=============\n";
 end
@@ -80,6 +80,9 @@ module Scope (Symtbl : Symbol_table with type key = string) = struct
   let symbol_exists ~scope sym =
     Symtbl.exists ~symtbl:scope.symtbl sym
 
-  let dump ~scope =
-    Symtbl.dump ~symtbl:scope.symtbl
+  let rec dump ~scope =
+    Symtbl.dump ~symtbl:scope.symtbl;
+    match scope.parent with
+    | None -> ()
+    | Some par -> dump ~scope:par
 end

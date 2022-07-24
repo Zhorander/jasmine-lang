@@ -43,8 +43,12 @@ module Location = struct
     | Identifier i -> i
     | Temporary i -> Printf.sprintf "@%d" i
 
-  let register_tmp env tmp_i =
-    
+  let register_tmp: type a. Env.t -> a Ty.t -> (t * Env.t) = fun env ty ->
+    let (tmp_i,env) = Env.inc_tmp env in
+    let tmp = Temporary tmp_i in
+    Scope.add_symbol ~scope:env.scope (to_string tmp) (Ty.Ty ty);
+    tmp,env
+
 end
 
 module Value = struct
@@ -65,7 +69,7 @@ module Value = struct
     | Int _ -> Ty.Int
     | Bool _ -> Ty.Bool
     | Unit _ -> Ty.Unit
-    | Loc _ -> Ty.Poly
+    | Loc (_,ty) -> ty
 
   let eq_types: type a b. a t -> b t -> (a,b) Common.Types.eq
   = fun va vb ->
@@ -157,12 +161,11 @@ let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env
     let env,acc = t_of_expression (env,acc) rhe in
     let rh_tmp_var = Value.Loc (Location.Temporary env.curr_tmp, ty) in
     (* we increment the tmp var in the environment to create a new temp variable *)
-    let binary_tmp_var,env = Env.inc_tmp env in
-    let res_tmp = Location.Temporary binary_tmp_var in
+    let (res_tmp,env) = Location.register_tmp env ty in
     let res_decl = Statement.Decl (Location.to_string res_tmp, ty) in
     (* our new temp variable is the result of the binary expression between the
        previous temp variables *)
-    let new_stmt = make_stmt lh_tmp_var rh_tmp_var (Location.Temporary binary_tmp_var) in
+    let new_stmt = make_stmt lh_tmp_var rh_tmp_var res_tmp in
     (env, new_stmt :: res_decl :: acc)
   in
   (* Helper function to make a unary statement *)
@@ -180,8 +183,7 @@ let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env
   (* Helper function to turn a value expression into a statement *)
   let make_value : type b. b Value.t -> b Ty.t -> Env.t * (Statement.t list)
     = fun bv bty ->
-    let tmp_num, env = Env.inc_tmp env in
-    let tmp_loc = Location.Temporary tmp_num in
+    let (tmp_loc, env) = Location.register_tmp env bty in
     let decl_tmp = Statement.Decl (Location.to_string tmp_loc, bty) in
     let new_stmt = Statement.Assign (tmp_loc, bv) in
     (env, new_stmt :: decl_tmp :: acc)
@@ -205,9 +207,9 @@ let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env
   | Wt.Div (lhe, rhe) ->
     make_binary Ty.Int lhe rhe (fun lh rh loc -> Div (lh, rh, loc))
   | Wt.Equal (lhe, rhe) ->
-    make_binary Ty.Poly lhe rhe (fun lh rh loc -> Equal (lh, rh, loc))
+    make_binary Ty.Bool lhe rhe (fun lh rh loc -> Equal (lh, rh, loc))
   | Wt.Not_equal (lhe, rhe) ->
-    make_binary Ty.Poly lhe rhe (fun lh rh loc -> Not_equal (lh, rh, loc))
+    make_binary Ty.Bool lhe rhe (fun lh rh loc -> Not_equal (lh, rh, loc))
   | Wt.Not exp -> make_unary Ty.Bool exp (fun x loc -> Not (x, loc))
   | Wt.Funcall (name,params) ->
     let accumulate_values (env,acc) param =
@@ -311,6 +313,7 @@ let rec t_of_statement (env,acc) stmt =
 
     (env,then_acc @ else_acc @ acc)
   | Wt.Mutate (name, expr) ->
+    Scope.dump ~scope:env.scope;
     let (env,acc) = t_of_expression (env,acc) expr in
     let (Ty.Ty ty) = Location.Temporary (env.curr_tmp)
       |> Location.to_string
