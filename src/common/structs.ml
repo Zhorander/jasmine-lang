@@ -20,6 +20,8 @@ module type Symbol_table = sig
   val exists : symtbl:t -> key -> bool
 
   val dump : symtbl:t -> unit
+
+  val remove: symtbl:t -> key -> unit
 end
 
 module Make_symbol_table(Sym : Symbol)
@@ -54,7 +56,10 @@ module Make_symbol_table(Sym : Symbol)
     in
     Printf.printf "SYMTABLE DUMP\n-------------\n";
     Hashtbl.iteri ~f:print_entry symtbl;
-    Printf.printf "=============\n";
+    Printf.printf "=============\n"
+
+  let remove ~(symtbl:t) (sym:key) =
+    Hashtbl.remove symtbl sym
 end
 
 module Scope (Symtbl : Symbol_table with type key = string) = struct
@@ -85,4 +90,7 @@ module Scope (Symtbl : Symbol_table with type key = string) = struct
     match scope.parent with
     | None -> ()
     | Some par -> dump ~scope:par
+
+  let remove ~scope sym =
+    Symtbl.remove ~symtbl:scope.symtbl sym
 end

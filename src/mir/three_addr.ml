@@ -31,6 +31,9 @@ module Env = struct
   let pop_child_scope e = {
     e with scope = match e.scope.parent with
     Some par -> par | None -> raise (Common.Exceptions.Compiler_error "Scope is not a child scope.")}
+
+  let peek_tmp_ty e =
+    Scope.find ~scope:e.scope (Printf.sprintf "@%d" e.curr_tmp)
 end
 
 
@@ -58,6 +61,8 @@ module Value = struct
     | Unit : unit -> unit t
     | Loc : Location.t * 'a Ty.t -> 'a t
 
+  type some_t = Some_t: 'a t * 'a Ty.t -> some_t
+
   let to_string: type a. a t -> string = function
     | Int i -> string_of_int i
     | Bool b -> string_of_bool b
@@ -76,7 +81,13 @@ module Value = struct
     match (va,vb) with
     | (Int _, Int _) -> Types.Refl
     | (Bool _, Bool _) -> Types.Refl
-    | (Unit (), Unit ()) ->Types.Refl
+    | (Unit (), Unit ()) -> Types.Refl
+    | Loc (_,lty), (_ as x) ->
+      let rty = to_ty x in
+      Ty.eq_types lty rty
+    | (_ as x), Loc (_,rty) ->
+      let lty = to_ty x in
+      Ty.eq_types lty rty
     | _ -> raise (Common.Exceptions.TypeError "")
 end
 
@@ -135,7 +146,7 @@ module Statement = struct
     | Function_end -> "end"
     | Function_param (name,ty) -> Printf.sprintf "in %s : %s" name (Ty.to_string ty)
     | Function_ret_type ty -> "out " ^ (Ty.to_string ty)
-    | Function_call (name,loc) -> Printf.sprintf "%s := %s;" name (Location.to_string loc)
+    | Function_call (name,loc) -> Printf.sprintf "%s := call %s;" (Location.to_string loc) name
     | Add (lhv,rhv,loc) -> string_of_binary lhv rhv loc "+"
     | Sub (lhv,rhv,loc) -> string_of_binary lhv rhv loc "-"
     | Mult (lhv,rhv,loc) -> string_of_binary lhv rhv loc "*"
@@ -150,22 +161,23 @@ end
 let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env.t * (Statement.t list)
   = fun (env,acc) expr ->
   (* Helper function to make a binary statement *)
-  let make_binary: type b. b Ty.t -> b Wt.expr -> b Wt.expr ->
-    (b Value.t -> b Value.t -> Location.t -> Statement.t) ->
+  let make_binary: type b c. c Ty.t -> b Wt.expr -> b Wt.expr ->
+    (Value.some_t -> Value.some_t -> Location.t -> Statement.t) ->
     Env.t * (Statement.t list)
-    = fun ty lhe rhe make_stmt ->
+    = fun res_ty lhe rhe make_stmt ->
     (* turn the left hand side into three-address structs, take the resulting tmp var *)
     let env,acc = t_of_expression (env,acc) lhe in
-    let lh_tmp_var = Value.Loc (Location.Temporary env.curr_tmp, ty) in
+    let (Ty.Ty tmp_ty) = Env.peek_tmp_ty env in
+    let lh_tmp_var = Value.Loc (Location.Temporary env.curr_tmp, tmp_ty) in
     (* same for the right hand side *)
     let env,acc = t_of_expression (env,acc) rhe in
-    let rh_tmp_var = Value.Loc (Location.Temporary env.curr_tmp, ty) in
+    let rh_tmp_var = Value.Loc (Location.Temporary env.curr_tmp, tmp_ty) in
     (* we increment the tmp var in the environment to create a new temp variable *)
-    let (res_tmp,env) = Location.register_tmp env ty in
-    let res_decl = Statement.Decl (Location.to_string res_tmp, ty) in
+    let (res_tmp,env) = Location.register_tmp env res_ty in
+    let res_decl = Statement.Decl (Location.to_string res_tmp, res_ty) in
     (* our new temp variable is the result of the binary expression between the
        previous temp variables *)
-    let new_stmt = make_stmt lh_tmp_var rh_tmp_var res_tmp in
+    let new_stmt = make_stmt (Value.Some_t (lh_tmp_var, tmp_ty)) (Value.Some_t (rh_tmp_var, tmp_ty)) res_tmp in
     (env, new_stmt :: res_decl :: acc)
   in
   (* Helper function to make a unary statement *)
@@ -199,17 +211,57 @@ let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env
   | Wt.Group g ->
     t_of_expression (env,acc) g
   | Wt.Plus (lhe, rhe) ->
-    make_binary Ty.Int lhe rhe (fun lh rh loc -> Add (lh, rh, loc))
+    make_binary Ty.Int lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty Ty.Int in
+        let Types.Refl = Ty.eq_types rty Ty.Int in
+        Add (lht, rht, loc)
+      )
   | Wt.Sub (lhe, rhe) ->
-    make_binary Ty.Int lhe rhe (fun lh rh loc -> Sub (lh, rh, loc))
+    make_binary Ty.Int lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty Ty.Int in
+        let Types.Refl = Ty.eq_types rty Ty.Int in
+        Sub (lht, rht, loc)
+      )
   | Wt.Mult (lhe, rhe) ->
-    make_binary Ty.Int lhe rhe (fun lh rh loc -> Mult (lh, rh, loc))
+    make_binary Ty.Int lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty Ty.Int in
+        let Types.Refl = Ty.eq_types rty Ty.Int in
+        Mult (lht, rht, loc)
+      )
   | Wt.Div (lhe, rhe) ->
-    make_binary Ty.Int lhe rhe (fun lh rh loc -> Div (lh, rh, loc))
+    make_binary Ty.Int lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty Ty.Int in
+        let Types.Refl = Ty.eq_types rty Ty.Int in
+        Mult (lht, rht, loc)
+      )
   | Wt.Equal (lhe, rhe) ->
-    make_binary Ty.Bool lhe rhe (fun lh rh loc -> Equal (lh, rh, loc))
+    make_binary Ty.Bool lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty rty in
+        Equal (lht, rht, loc)
+      )
   | Wt.Not_equal (lhe, rhe) ->
-    make_binary Ty.Bool lhe rhe (fun lh rh loc -> Not_equal (lh, rh, loc))
+    make_binary Ty.Bool lhe rhe (
+      fun lh rh loc ->
+        let (Value.Some_t (lht, lty)) = lh in
+        let (Value.Some_t (rht, rty)) = rh in
+        let Types.Refl = Ty.eq_types lty rty in
+        Not_equal (lht, rht, loc)
+      )
   | Wt.Not exp -> make_unary Ty.Bool exp (fun x loc -> Not (x, loc))
   | Wt.Funcall (name,params) ->
     let accumulate_values (env,acc) param =
@@ -227,13 +279,22 @@ let rec t_of_expression : type a. Env.t * (Statement.t list) -> a Wt.expr -> Env
         (env,acc)
       end
     in
+    let (Ty.Ty fun_ty) = Scope.find ~scope:env.scope name in
+    let ret_ty = begin match fun_ty with
+      | Fun (_, ret_ty) -> ret_ty
+      | _ ->
+        let err_msg = Printf.sprintf "%s is not a function" name in
+        raise (Common.Exceptions.Compiler_error err_msg)
+    end
+    in
     let start_call_stmt = Statement.Start_call name in
     let acc = start_call_stmt :: acc in
     let env,acc = List.fold ~init:(env,acc) ~f:accumulate_values params in
     (* result *)
-    let result_tmp, env = Env.inc_tmp env in
-    let call_stmt = Statement.Function_call (name, Location.Temporary result_tmp) in
-    env, call_stmt :: acc
+    let result_tmp, env = Location.register_tmp env ret_ty in
+    let decl_tmp = Statement.Decl (Location.to_string result_tmp, ret_ty) in
+    let call_stmt = Statement.Function_call (name, result_tmp) in
+    env, call_stmt :: decl_tmp :: acc
 
 let rec t_of_statement (env,acc) stmt =
   match stmt with
@@ -313,14 +374,14 @@ let rec t_of_statement (env,acc) stmt =
 
     (env,then_acc @ else_acc @ acc)
   | Wt.Mutate (name, expr) ->
-    Scope.dump ~scope:env.scope;
     let (env,acc) = t_of_expression (env,acc) expr in
     let (Ty.Ty ty) = Location.Temporary (env.curr_tmp)
       |> Location.to_string
       |> Scope.find ~scope:env.scope
     in
-    let exp_tmp = Value.Loc (Temporary env.curr_tmp, ty) in
-    let new_stmt = Statement.Assign (Location.Identifier name, exp_tmp) in
+    let (tmp,env) = Location.register_tmp env ty in
+    let tmp_val = Value.Loc (tmp,ty) in
+    let new_stmt = Statement.Assign (Location.Identifier name, tmp_val) in
     (env, new_stmt :: acc)
   | Wt.Return expr ->
     let (Wt.Expr (expr,ety)) = expr in
@@ -334,6 +395,10 @@ let rec t_of_statement (env,acc) stmt =
     let new_stmt = Statement.Return exp_tmp in
     (env,new_stmt :: acc)
   | Wt.Fun_def { name; params; ret_t; body} ->
+    (* Register function type *)
+    let ptys = List.map ~f:(function (_,st) -> st) params in
+    let fun_sty = Ty.Ty (Ty.Fun (ptys, ret_t)) in
+    Scope.add_symbol ~scope:env.scope name fun_sty;
     (* Function starts a new scope *)
     let env = Env.push_child_scope env in
     let fun_start_stmt = Statement.Function_start name in

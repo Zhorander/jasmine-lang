@@ -13,18 +13,28 @@ end)
 
 module Scope = Common.Structs.Scope(Symtable)
 
+module Fun_symtable = Common.Structs.Make_symbol_table(struct
+  type t = string
+
+  let to_string s = s
+end)
+
+module Fun_scope = Common.Structs.Scope(Fun_symtable)
+
 open Core
 
 
 module Env = struct
   type t = {
-    valuescope: Scope.t;
-    symscope: Ta.Scope.t
+    valuescope: Scope.t
+    ; symscope: Ta.Scope.t
+    ; funscope: Fun_scope.t
   }
 
   let create () = {
-    valuescope = Scope.create ();
-    symscope = Ta.Scope.create ()
+    valuescope = Scope.create ()
+    ; symscope = Ta.Scope.create ()
+    ; funscope = Fun_scope.create ()
   }
 
   let add_value ~env name v = Scope.add_symbol ~scope:env.valuescope name v
@@ -77,17 +87,38 @@ let constant_propogation_stmt ((env:Env.t),acc) stmt =
   in
   let propogate_unary: type a. a Ta.Value.t -> a Ta.Value.t
   = fun v ->
-    let v_val = match replace_tmp_val env v with Some v -> v | None -> v in
+    let v_val = replace_tmp_val env v
+      |> Option.value ~default:v
+    in
     v_val
   in
   match stmt with
   | Ta.Statement.Assign (loc,v) ->
     let ty = Ta.Value.to_ty v in
-    let v = match replace_tmp_val env v with Some v -> v | None -> v in
+    let v = replace_tmp_val env v
+      |> Option.value ~default:v
+    in
+    let v_is_tmp =
+      match v with
+      | Ta.Value.Loc _ -> true
+      | _ -> false
+    in
+    let v_refers_function =
+      Fun_scope.symbol_exists ~scope:env.funscope (Ta.Value.to_string v)
+    in
     (* If the location is a temporary variable, then add the expression to the symbol table *)
-    if is_loc_tmp loc then Scope.add_symbol ~scope:env.valuescope (Ta.Location.to_string loc) (Some_val (v,ty));
-
-    let new_stmt = Ta.Statement.Assign (loc, v) in
+    if is_loc_tmp loc then
+      Scope.add_symbol
+      ~scope:env.valuescope
+      (Ta.Location.to_string loc)
+      (Some_val (v,ty));
+    let new_stmt = if v_is_tmp && v_refers_function then begin
+      let fun_name = Fun_scope.find ~scope:env.funscope (Ta.Value.to_string v) in
+      Fun_scope.remove ~scope:env.funscope (Ta.Value.to_string v);
+      Ta.Statement.Function_call (fun_name, loc)
+    end else
+      Ta.Statement.Assign (loc, v)
+    in
     env, new_stmt :: acc
   | Ta.Statement.If (v,lbl) ->
     let v = replace_tmp_val env v
@@ -158,6 +189,34 @@ let register_decls env stmts =
   env
 
 
+let register_funcalls (env: Env.t) stmts =
+  List.iter ~f:(function
+    | Ta.Statement.Function_call (name, loc) ->
+      if not (Fun_scope.symbol_exists ~scope:env.funscope name) then begin
+        Fun_scope.add_symbol
+          ~scope:env.funscope
+          (Ta.Location.to_string loc)
+          name
+      end
+    | _ -> ()
+    )
+    stmts;
+  env
+
+
+let elide_funcalls ((env:Env.t), acc) stmt =
+  match stmt with
+  | Ta.Statement.Function_call (_, loc) ->
+    let loc_str = Ta.Location.to_string loc in
+    if (is_tmp_string loc_str)
+      && not (Fun_scope.symbol_exists ~scope:env.funscope loc_str)
+    then
+      env, acc
+    else
+      env, stmt :: acc
+  | _ -> env, stmt :: acc
+
+
 let elide_temps (used,acc) stmt =
   let collect_temps_from_vals vals =
     List.filter ~f:is_tmp_val vals
@@ -188,19 +247,26 @@ let elide_temps (used,acc) stmt =
   | Ta.Statement.Call_param v ->
     let used_tmps = collect_temps_from_vals [v] in
     (used_tmps @ used), stmt :: acc
+  | Ta.Statement.Function_call (_, loc) ->
+    if is_loc_tmp loc then
+      ((Ta.Location.to_string loc) :: used), (stmt :: acc)
+    else
+      used, stmt :: acc
   | _ -> used, (stmt :: acc)
 
 
 let optimize stmts =
-  let () =
+  (* let () =
     List.map ~f:Ta.Statement.to_string stmts
     |> List.iter ~f:print_endline
   in
-  print_endline "========================";
+  print_endline "========================"; *)
   let env = register_decls (Env.create ()) stmts in
-  Ta.Scope.dump ~scope:env.symscope;
+  let env = register_funcalls env stmts in
   List.fold ~init:(env,[]) ~f:constant_propogation_stmt stmts
-  |> fun (_,prop_stmts) -> prop_stmts
+  |> fun (env ,prop_stmts) ->
+    List.fold ~init:(env,[]) ~f:elide_funcalls prop_stmts
+  |> fun (_, stmts) -> stmts
   |> List.rev
   |> List.fold ~init:([],[]) ~f:elide_temps
   |> fun (_, elided_stmts) -> elided_stmts
